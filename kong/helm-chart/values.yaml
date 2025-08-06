@@ -20,6 +20,7 @@ kong:
     # Enable lua packages for HTTP calls
     lua_package_path: "/opt/?.lua;;"
 
+
   # Enable ingress controller
   ingressController:
     enabled: true
@@ -81,6 +82,8 @@ kong:
   serviceMonitor:
     enabled: false
 
+
+
 # Downstream services configuration
 downstreamServices:
   service1:
@@ -101,51 +104,35 @@ authService:
   port: 8003
   image: auth-service:latest
   replicas: 1
+  # URL for the auth service verification endpoint
+  url: "http://auth-service:8003/auth/verify"
+  timeout: 10000
   env:
     KEYCLOAK_BASE_URL: "https://d1df8d9f5a76.ngrok-free.app"
     KEYCLOAK_REALM: "kong"
 
 # Keycloak configuration
 keycloak:
-  baseUrl: "http://d1df8d9f5a76.ngrok-free.app"
+  baseUrl: "https://d1df8d9f5a76.ngrok-free.app"
   realm: "kong"
   clientId: "kong_client"
+  expectedIssuer: "http://d1df8d9f5a76.ngrok-free.app/realms/kong"
+  expectedAudience: "account"
   
-  # JWT Configuration
-  jwt:
-    algorithm: "RS256"
-    # RSA Public Key for JWT verification
-    # This should be the public key from your Keycloak realm
-    # You can get this from: {keycloak_url}/realms/{realm}/protocol/openid-connect/certs
-    publicKey: |
-      -----BEGIN PUBLIC KEY-----
-      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyKH9K8Y3BxJf8EWOr9B4
-      Z4FdR3QXVqP3zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DY
-      zJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6
-      DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7
-      Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9
-      C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8
-      L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5
-      U8L9C7Q6DYzJfCgE3vRqL8QIDAQAB
-      -----END PUBLIC KEY-----
-    
-    # Optional: If you want to fetch the key automatically from Keycloak
-    # Set this to true and the deployment will try to fetch the key
-    autoFetch: false
-    
-    # Key ID (kid) from the JWT header - leave empty to use the first key
-    keyId: ""
+# Lua Scripts Configuration
+luaScripts:
+  # Enable external Lua script files (embedded via Helm templating)
+  enabled: true
+  # Configuration for individual scripts
+  customJwtAuth:
+    filename: "custom-jwt-auth.lua"
+    enabled: true
+  customAuthPreFunction:
+    filename: "custom-auth-pre-function.lua"
+    enabled: true
 
 # Kong plugins global configuration
 kongPlugins:
-  # JWT plugin configuration
-  jwt:
-    secret_is_base64: false
-    key_claim_name: "kid"
-    algorithm: "RS256"
-    # Reference to the Keycloak JWT secret
-    secret: "keycloak-jwt-secret"
-    
   # Rate limiting configuration
   rateLimiting:
     requests_per_second: 100
@@ -176,7 +163,7 @@ routes:
     enabled: true
     description: "Protected endpoints requiring valid JWT token"
     plugins:
-      - "jwt-auth"
+      - "custom-jwt-auth"
       - "rate-limiting-global"
       - "cors"
     paths:

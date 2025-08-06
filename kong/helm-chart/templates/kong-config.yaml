@@ -1,3 +1,4 @@
+
 # Kong Global Plugins
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
@@ -16,26 +17,34 @@ config:
   policy: local
   hide_client_headers: false
 ---
-# JWT Plugin for Protected Routes
+# Custom JWT Plugin with Keycloak JWKS Integration
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
-  name: jwt-auth
+  name: custom-jwt-auth
   namespace: {{ .Release.Namespace }}
   annotations: {}
   labels:
     app.kubernetes.io/name: kong-gateway-poc
     app.kubernetes.io/component: kong-plugin
-plugin: jwt
+plugin: pre-function
 config:
-  secret_is_base64: false
-  key_claim_name: iss
-  claims_to_verify:
-    - exp
-  uri_param_names:
-    - jwt
-  cookie_names:
-    - jwt
+  access:
+    - |
+      {{- if .Values.luaScripts.enabled }}
+      -- External Lua script: {{ .Values.luaScripts.customJwtAuth.filename }}
+      -- Configuration values are rendered by Helm templating
+      local KEYCLOAK_BASE_URL = "{{ .Values.keycloak.baseUrl }}"
+      local KEYCLOAK_REALM = "{{ .Values.keycloak.realm }}"
+      local EXPECTED_ISSUER = "{{ .Values.keycloak.expectedIssuer }}"
+      local EXPECTED_AUDIENCE = "{{ .Values.keycloak.expectedAudience }}"
+      
+{{ .Files.Get "lua-scripts/custom-jwt-auth.lua" | indent 6 }}
+      {{- else }}
+      -- Fallback: external scripts disabled
+      kong.log.warn("[custom-jwt] External scripts disabled, no authentication performed")
+      kong.response.exit(500, { error = "Authentication not configured" })
+      {{- end }}
 ---
 # Request Termination Plugin for Private Routes
 apiVersion: configuration.konghq.com/v1
@@ -69,71 +78,18 @@ plugin: pre-function
 config:
   access:
     - |
-      local http = require "resty.http"
-      local cjson = require "cjson"
+      {{- if .Values.luaScripts.enabled }}
+      -- External Lua script: {{ .Values.luaScripts.customAuthPreFunction.filename }}
+      -- Configuration values are rendered by Helm templating
+      local AUTH_SERVICE_URL = "{{ .Values.authService.url }}"
+      local AUTH_SERVICE_TIMEOUT = {{ .Values.authService.timeout | default 10000 }}
       
-      local function call_auth_service()
-        -- Get request details
-        local request_path = kong.request.get_path()
-        local request_method = kong.request.get_method()
-        local auth_header = kong.request.get_header("Authorization")
-        
-        if not auth_header then
-          kong.log.warn("No Authorization header found")
-          return kong.response.exit(401, {error = "Authorization header required"})
-        end
-        
-        -- Prepare payload for auth service
-        local auth_payload = {
-          path = request_path,
-          method = request_method,
-          token = auth_header
-        }
-        
-        -- Call auth service using Kong's HTTP client
-        local httpc = http.new()
-        httpc:set_timeout(10000)
-        
-        local res, err = httpc:request_uri("http://auth-service:8003/auth/verify", {
-          method = "POST",
-          body = cjson.encode(auth_payload),
-          headers = {
-            ["Content-Type"] = "application/json"
-          },
-          ssl_verify = false
-        })
-        
-        if not res then
-          kong.log.err("Failed to call auth service: ", err)
-          return kong.response.exit(500, {error = "Authentication service unavailable"})
-        end
-        
-        if res.status ~= 200 then
-          kong.log.warn("Auth service returned status: ", res.status)
-          local response_body = res.body or "{}"
-          local success, parsed_body = pcall(cjson.decode, response_body)
-          if success then
-            return kong.response.exit(res.status, parsed_body)
-          else
-            return kong.response.exit(res.status, {error = "Authentication failed"})
-          end
-        end
-        
-        -- Parse response and add headers for downstream
-        local success, auth_response = pcall(cjson.decode, res.body)
-        if success and auth_response and auth_response.authorized then
-          kong.service.request.set_header("X-User-ID", auth_response.user_id or "")
-          kong.service.request.set_header("X-Enterprise-ID", auth_response.enterprise_id or "")
-          kong.service.request.set_header("X-Client-ID", auth_response.client_id or "")
-          kong.service.request.set_header("X-Username", auth_response.username or "")
-          kong.log.info("Authentication successful for user: ", auth_response.user_id)
-        else
-          kong.log.warn("Authentication failed - invalid response from auth service")
-          return kong.response.exit(403, {error = "Access denied"})
-        end
-      end
-      
-      call_auth_service()
+{{ .Files.Get "lua-scripts/custom-auth-pre-function.lua" | indent 6 }}
+      {{- else }}
+      -- Fallback: external scripts disabled
+      kong.log.warn("[custom-auth] External scripts disabled, no authentication performed")
+      kong.response.exit(500, { error = "Authentication not configured" })
+      {{- end }}
 
 ---
 # CORS Plugin

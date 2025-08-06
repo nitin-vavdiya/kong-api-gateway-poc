@@ -29,10 +29,11 @@ This project demonstrates a comprehensive Kong API Gateway setup with Keycloak i
 ## 🚀 Features
 
 - **Kong API Gateway** as the single entry point
-- **JWT Token Validation** using Keycloak public keys
+- **Custom JWT Authentication** with dynamic key fetching from Keycloak JWKS
+- **Intelligent Key Management** with automatic caching and rotation
 - **Multiple Authorization Patterns**:
   - Public APIs (no authentication)
-  - Protected APIs (JWT validation only)
+  - Protected APIs (custom JWT validation)
   - Private APIs (always blocked)
   - Custom APIs (external authorization service)
 - **Rate Limiting** with different policies
@@ -67,6 +68,9 @@ kong-api-gateway-poc/
 │       │   ├── downstream-service-2.yaml # Service 2 deployment
 │       │   ├── kong-config.yaml  # Kong plugins and configuration
 │       │   └── kong-routes.yaml  # Kong routes and ingress
+│       ├── lua-scripts/          # Custom Lua authentication scripts
+│       │   ├── custom-jwt-auth.lua # JWT verification with JWKS fetching
+│       │   └── custom-auth-pre-function.lua # External auth service integration
 │       ├── charts/               # Helm chart dependencies
 │       │   └── kong-2.26.0.tgz   # Kong Helm chart
 │       ├── Chart.yaml            # Chart metadata
@@ -77,7 +81,8 @@ kong-api-gateway-poc/
 │   ├── cleanup.sh                # Resource cleanup script
 │   ├── get-keycloak-keys.sh      # Keycloak public key fetcher
 │   ├── install-kong-crds.sh      # Kong CRDs installation
-│   └── test-endpoints.sh         # API endpoint testing
+│   ├── test-endpoints.sh         # API endpoint testing
+│   └── test-custom-jwt.sh        # Custom JWT implementation testing
 └── README.md                     # This file
 ```
 
@@ -89,9 +94,11 @@ kong-api-gateway-poc/
 - Rate limiting applied
 
 ### 2. Protected APIs (`/api/protected/**`)
-- **JWT token validation** using Kong's JWT plugin
-- Token verified against Keycloak public keys
-- User information extracted and forwarded as headers
+- **Custom JWT token validation** using Lua script in Kong
+- Dynamic public key fetching from Keycloak JWKS endpoint
+- Intelligent key caching with 1-hour TTL for performance
+- Automatic key rotation support without manual intervention
+- User information extracted and forwarded as headers (X-User-ID, X-Client-ID, X-Username)
 
 ### 3. Private APIs (`/api/private/**`)
 - **Always rejected** with 401 Unauthorized
@@ -101,6 +108,42 @@ kong-api-gateway-poc/
 - **External authorization service** validation
 - JWT token + business logic validation
 - Custom headers added (user_id, enterprise_id)
+
+## 🔧 Custom JWT Implementation
+
+This POC features a **custom JWT authentication implementation** that replaces Kong's built-in JWT plugin with a more flexible and intelligent solution.
+
+### Key Features
+
+- **Dynamic Key Fetching**: Automatically retrieves public keys from Keycloak's JWKS endpoint
+- **Intelligent Caching**: Caches keys for 1 hour to improve performance
+- **Automatic Key Rotation**: Supports key rotation without manual configuration updates
+- **Resilient Fallback**: Falls back to cached keys if Keycloak is temporarily unavailable
+- **Full Control**: Complete visibility and control over the JWT verification process
+
+### Implementation Details
+
+The custom authentication is implemented in two Lua scripts:
+
+#### 1. `custom-jwt-auth.lua`
+- Fetches public keys from Keycloak JWKS endpoint
+- Implements JWT parsing and validation
+- Manages key caching with TTL
+- Validates standard JWT claims (exp, iss, aud)
+- Adds user headers for downstream services
+
+#### 2. `custom-auth-pre-function.lua`
+- Integrates with external authorization service
+- Provides additional business logic validation
+- Works alongside JWT validation for custom endpoints
+
+### Benefits Over Standard Kong JWT Plugin
+
+1. **No Manual Key Management**: Keys are fetched automatically
+2. **Seamless Key Rotation**: New keys picked up when cache expires
+3. **Better Performance**: Local caching reduces external calls
+4. **Enhanced Debugging**: Detailed logging for troubleshooting
+5. **Flexible Configuration**: Easy customization for specific requirements
 
 ## 🛠️ Prerequisites
 
@@ -274,49 +317,36 @@ routes:
 
 ### Keycloak Integration
 
-Configure Keycloak settings and JWT public keys in the values file:
+Configure Keycloak settings in the values file:
 
 ```yaml
 keycloak:
   baseUrl: "https://d1df8d9f5a76.ngrok-free.app"
   realm: "kong"
   clientId: "kong_client"
-  
-  # JWT Configuration
-  jwt:
-    algorithm: "RS256"
-    publicKey: |
-      -----BEGIN PUBLIC KEY-----
-      # Your Keycloak RSA public key goes here
-      -----END PUBLIC KEY-----
-    autoFetch: false
-    keyId: ""  # Optional: specify key ID if multiple keys
+  expectedIssuer: "http://d1df8d9f5a76.ngrok-free.app/realms/kong"
+  expectedAudience: "account"
 ```
 
-#### Getting Keycloak Public Keys
+**Note**: With the custom JWT implementation, you no longer need to manually configure RSA public keys. The system automatically fetches them from the Keycloak JWKS endpoint.
 
-Use the provided script to fetch public keys from your Keycloak instance:
+#### Testing Custom JWT Implementation
+
+Use the provided script to test the custom JWT authentication:
 
 ```bash
-# Fetch keys from Keycloak
-./scripts/get-keycloak-keys.sh https://your-keycloak-url.com realm-name
+# Test custom JWT implementation
+./scripts/test-custom-jwt.sh
 
-# Or use default values
-./scripts/get-keycloak-keys.sh
+# Or test all endpoints
+./scripts/test-endpoints.sh
 ```
 
-The script will:
-- Fetch JWKS from Keycloak
-- Display available keys
-- Provide configuration for values.yaml
-- Show JWK format for manual conversion to PEM
-
-#### Manual Key Configuration
-
-1. **Get JWKS URL**: `{keycloak_url}/realms/{realm}/protocol/openid-connect/certs`
-2. **Extract RSA public key** from the JWKS response
-3. **Convert JWK to PEM format** (use online tools or openssl)
-4. **Update values.yaml** with the PEM format key
+The custom implementation automatically:
+- Fetches JWKS from Keycloak's well-known endpoint
+- Caches keys locally for performance
+- Handles key rotation transparently
+- Provides detailed logging for debugging
 
 ## 📜 Available Scripts
 
@@ -327,7 +357,8 @@ The POC includes several utility scripts in the `scripts/` directory:
 | `deploy.sh` | Deploy entire Kong POC to minikube |
 | `cleanup.sh` | Remove all POC resources and optionally stop minikube |
 | `test-endpoints.sh` | Test all API endpoints with different auth scenarios |
-| `get-keycloak-keys.sh` | Fetch RSA public keys from Keycloak for JWT verification |
+| `test-custom-jwt.sh` | Test custom JWT implementation specifically |
+| `get-keycloak-keys.sh` | Fetch RSA public keys from Keycloak for reference |
 | `install-kong-crds.sh` | Install Kong Custom Resource Definitions (CRDs) |
 
 ### Script Usage Examples
@@ -344,6 +375,9 @@ The POC includes several utility scripts in the `scripts/` directory:
 
 # Test all endpoints
 ./scripts/test-endpoints.sh
+
+# Test custom JWT implementation
+./scripts/test-custom-jwt.sh
 
 # Clean up everything
 ./scripts/cleanup.sh
