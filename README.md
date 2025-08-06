@@ -19,27 +19,24 @@ This project demonstrates a comprehensive Kong API Gateway setup with Keycloak i
 
 ## 🏗️ Architecture Overview
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Keycloak      │    │  Kong Gateway   │    │ Downstream      │
-│   (External)    │    │                 │    │ Services        │
-│                 │────▶│  ┌─────────────┐│────▶│                 │
-│ - JWT Token     │    │  │   Plugins   ││    │ - Service 1     │
-│   Generation    │    │  │ - JWT Auth  ││    │ - Service 2     │
-│ - User Auth     │    │  │ - Rate Limit││    │                 │
-└─────────────────┘    │  │ - CORS      ││    └─────────────────┘
-                       │  │ - Logging   ││
-                       │  └─────────────┘│    ┌─────────────────┐
-                       │                 │    │ Auth Service    │
-                       │  ┌─────────────┐│────▶│                 │
-                       │  │   Routes    ││    │ - Custom Auth   │
-                       │  │ - Public    ││    │ - JWT Verify    │
-                       │  │ - Protected ││    │ - User Info     │
-                       │  │ - Private   ││    └─────────────────┘
-                       │  │ - Custom    ││
-                       │  └─────────────┘│
-                       └─────────────────┘
-```
+![Kong API Gateway POC Architecture](./cs/docs/architecture.svg)
+
+The architecture consists of:
+
+- **External Services**: Keycloak for OAuth2/OIDC and client applications
+- **Kong Gateway**: Central API gateway with custom Python plugins running on Kubernetes
+- **Custom Plugins**: JWT authentication, pre-function auth, rate limiting, CORS, and logging
+- **API Routes**: Public, protected, private, and custom authentication patterns
+- **Microservices**: Auth service and downstream services for business logic
+- **Development Tools**: Docker, Helm, and kubectl for deployment and management
+
+### Flow Overview
+
+1. **Client Authentication**: Clients obtain JWT tokens from Keycloak
+2. **Request Processing**: Kong processes requests through custom Python plugins
+3. **Route Matching**: Requests are routed based on path patterns and authentication requirements
+4. **Service Forwarding**: Validated requests are forwarded to appropriate microservices
+5. **Response Processing**: Responses flow back through Kong with appropriate headers and logging
 
 ## 🚀 Features
 
@@ -103,6 +100,9 @@ kong-api-gateway-poc/
 │   ├── install-kong-crds.sh      # Kong CRDs installation
 │   ├── test-endpoints.sh         # API endpoint testing
 │   └── test-custom-jwt.sh        # Custom JWT implementation testing
+├── docs/
+│   ├── architecture.d2           # Architecture diagram source (D2 language)
+│   └── architecture.svg          # Architecture diagram (SVG format)
 └── README.md                     # This file
 ```
 

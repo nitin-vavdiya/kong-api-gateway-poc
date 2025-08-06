@@ -1,0 +1,81 @@
+# Kong API Gateway POC Architecture
+
+direction: right
+
+# External layer
+clients: Client Applications {
+  shape: person
+  style.fill: "#e1f5fe"
+}
+
+keycloak: Keycloak OAuth2 {
+  shape: cloud
+  style.fill: "#f3e5f5"
+}
+
+# Kong Gateway layer
+kong: Kong Gateway {
+  style.fill: "#e8f5e8"
+  
+  plugins: Custom Python Plugins {
+    jwt_auth: JWT Auth Plugin
+    pre_auth: Pre-Auth Plugin
+    rate_limit: Rate Limiting
+    cors: CORS
+  }
+  
+  routes: API Routes {
+    public: /api/public/** (No Auth)
+    protected: /api/protected/** (JWT)
+    private: /api/private/** (Blocked)
+    custom: /api/custom/** (Ext Auth)
+  }
+}
+
+# Services layer
+services: Microservices {
+  style.fill: "#fff3e0"
+  
+  auth_svc: Auth Service
+  service1: Downstream Service 1
+  service2: Downstream Service 2
+}
+
+# Kubernetes layer
+k8s: Kubernetes (minikube) {
+  style.fill: "#f1f8e9"
+  namespace: kong-poc namespace
+}
+
+# Connections
+clients -> kong: HTTP Requests\nBearer Token
+keycloak -> kong.plugins.jwt_auth: JWKS Keys\nDynamic Fetch
+keycloak -> clients: JWT Tokens
+
+kong.routes.public -> services.service1: Direct Forward
+kong.routes.public -> services.service2: Direct Forward
+
+kong.routes.protected -> services.service1: With User Headers
+kong.routes.protected -> services.service2: With User Headers
+
+kong.routes.custom -> services.auth_svc: JWT + Business Logic
+services.auth_svc -> services.service1: Authorized
+services.auth_svc -> services.service2: Authorized
+
+kong.routes.private -> clients: 401 Unauthorized {
+  style.stroke-dash: 5
+}
+
+# Deployment tools
+tools: Development Tools {
+  style.fill: "#fafafa"
+  docker: Docker
+  helm: Helm Charts
+  kubectl: kubectl
+}
+
+tools -> k8s: Deploy & Manage
+
+# Housing everything in Kubernetes
+k8s -> kong
+k8s -> services
