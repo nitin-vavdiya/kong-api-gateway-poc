@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.downstreamServices.service1.name }}
+  labels:
+    app: {{ .Values.downstreamServices.service1.name }}
+spec:
+  replicas: {{ .Values.downstreamServices.service1.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.downstreamServices.service1.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.downstreamServices.service1.name }}
+    spec:
+      containers:
+      - name: {{ .Values.downstreamServices.service1.name }}
+        image: {{ .Values.downstreamServices.service1.image }}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: {{ .Values.downstreamServices.service1.port }}
+        env:
+        - name: PORT
+          value: "{{ .Values.downstreamServices.service1.port }}"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.downstreamServices.service1.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.downstreamServices.service1.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.downstreamServices.service1.name }}
+  labels:
+    app: {{ .Values.downstreamServices.service1.name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.downstreamServices.service1.port }}
+    targetPort: {{ .Values.downstreamServices.service1.port }}
+    protocol: TCP
+  selector:
+    app: {{ .Values.downstreamServices.service1.name }}

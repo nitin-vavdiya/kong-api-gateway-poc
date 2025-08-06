@@ -1,0 +1,244 @@
+# Kong Gateway POC Values
+kong:
+  # Database configuration - using DB-less mode for simplicity
+  env:
+    database: "off"
+    nginx_worker_processes: "2"
+    proxy_access_log: /dev/stdout
+    admin_access_log: /dev/stdout
+    admin_gui_access_log: /dev/stdout
+    portal_api_access_log: /dev/stdout
+    proxy_error_log: /dev/stderr
+    admin_error_log: /dev/stderr
+    admin_gui_error_log: /dev/stderr
+    portal_api_error_log: /dev/stderr
+    log_level: info
+    # Allow untrusted lua code for pre-function plugins
+    untrusted_lua: "on"
+    # Disable sandbox restrictions for pre-function plugins  
+    untrusted_lua_sandbox_requires: "resty.http,cjson"
+    # Enable lua packages for HTTP calls
+    lua_package_path: "/opt/?.lua;;"
+
+  # Enable ingress controller
+  ingressController:
+    enabled: true
+    installCRDs: false
+
+  # Admin API configuration
+  admin:
+    enabled: true
+    type: NodePort
+    nodePort: 32001
+    http:
+      enabled: true
+      servicePort: 8001
+      containerPort: 8001
+
+  # Proxy service configuration
+  proxy:
+    enabled: true
+    type: NodePort
+    http:
+      enabled: true
+      servicePort: 80
+      containerPort: 8000
+      nodePort: 32000
+    https:
+      enabled: false
+
+  # Manager GUI
+  manager:
+    enabled: true
+    type: NodePort
+    nodePort: 32002
+    http:
+      enabled: true
+
+  # Enterprise features
+  enterprise:
+    enabled: false
+
+  # Resource limits
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Node selector for minikube
+  nodeSelector: {}
+
+  # Tolerations
+  tolerations: []
+
+  # Affinity
+  affinity: {}
+
+  # Enable service monitor for prometheus (if needed)
+  serviceMonitor:
+    enabled: false
+
+# Downstream services configuration
+downstreamServices:
+  service1:
+    name: downstream-service-1
+    port: 8001
+    image: downstream-service-1:latest
+    replicas: 1
+  
+  service2:
+    name: downstream-service-2
+    port: 8002
+    image: downstream-service-2:latest
+    replicas: 1
+
+# Auth service configuration
+authService:
+  name: auth-service
+  port: 8003
+  image: auth-service:latest
+  replicas: 1
+  env:
+    KEYCLOAK_BASE_URL: "https://d1df8d9f5a76.ngrok-free.app"
+    KEYCLOAK_REALM: "kong"
+
+# Keycloak configuration
+keycloak:
+  baseUrl: "http://d1df8d9f5a76.ngrok-free.app"
+  realm: "kong"
+  clientId: "kong_client"
+  
+  # JWT Configuration
+  jwt:
+    algorithm: "RS256"
+    # RSA Public Key for JWT verification
+    # This should be the public key from your Keycloak realm
+    # You can get this from: {keycloak_url}/realms/{realm}/protocol/openid-connect/certs
+    publicKey: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyKH9K8Y3BxJf8EWOr9B4
+      Z4FdR3QXVqP3zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DY
+      zJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6
+      DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7
+      Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9
+      C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8
+      L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5
+      U8L9C7Q6DYzJfCgE3vRqL8QIDAQAB
+      -----END PUBLIC KEY-----
+    
+    # Optional: If you want to fetch the key automatically from Keycloak
+    # Set this to true and the deployment will try to fetch the key
+    autoFetch: false
+    
+    # Key ID (kid) from the JWT header - leave empty to use the first key
+    keyId: ""
+
+# Kong plugins global configuration
+kongPlugins:
+  # JWT plugin configuration
+  jwt:
+    secret_is_base64: false
+    key_claim_name: "kid"
+    algorithm: "RS256"
+    # Reference to the Keycloak JWT secret
+    secret: "keycloak-jwt-secret"
+    
+  # Rate limiting configuration
+  rateLimiting:
+    requests_per_second: 100
+    requests_per_minute: 1000
+    requests_per_hour: 10000
+
+# Enhanced Routes configuration - Source of Truth
+routes:
+  # Public routes - No authentication required
+  public:
+    enabled: true
+    description: "Public endpoints accessible without authentication"
+    plugins:
+      - "rate-limiting-global"
+      - "cors"
+    paths:
+      - path: "/api/public/service1"
+        service: "downstream-service-1"
+        port: 8001
+        pathType: "Prefix"
+      - path: "/api/public/service2"
+        service: "downstream-service-2"  
+        port: 8002
+        pathType: "Prefix"
+    
+  # Protected routes - JWT authentication required
+  protected:
+    enabled: true
+    description: "Protected endpoints requiring valid JWT token"
+    plugins:
+      - "jwt-auth"
+      - "rate-limiting-global"
+      - "cors"
+    paths:
+      - path: "/api/protected/service1"
+        service: "downstream-service-1"
+        port: 8001
+        pathType: "Prefix"
+      - path: "/api/protected/service2"
+        service: "downstream-service-2"
+        port: 8002
+        pathType: "Prefix"
+    
+  # Private routes - Always blocked
+  private:
+    enabled: true
+    description: "Private endpoints that are always rejected"
+    plugins:
+      - "request-termination-private"
+    paths:
+      - path: "/api/private/service1"
+        service: "downstream-service-1"
+        port: 8001
+        pathType: "Prefix"
+      - path: "/api/private/service2"
+        service: "downstream-service-2"
+        port: 8002
+        pathType: "Prefix"
+    
+  # Custom routes - External authorization service
+  custom:
+    enabled: true
+    description: "Custom endpoints with external authorization"
+    plugins:
+      - "custom-auth-pre-function"
+      - "rate-limiting-global"
+      - "cors"
+    paths:
+      - path: "/api/custom/service1"
+        service: "downstream-service-1"
+        port: 8001
+        pathType: "Prefix"
+      - path: "/api/custom/service2"
+        service: "downstream-service-2"
+        port: 8002
+        pathType: "Prefix"
+  
+  # Health check routes
+  health:
+    enabled: true
+    description: "Health check endpoints for monitoring"
+    plugins:
+      - "cors"
+    paths:
+      - path: "/health/downstream-1"
+        service: "downstream-service-1"
+        port: 8001
+        pathType: "Exact"
+      - path: "/health/downstream-2"
+        service: "downstream-service-2"
+        port: 8002
+        pathType: "Exact"
+      - path: "/health/auth"
+        service: "auth-service"
+        port: 8003
+        pathType: "Exact"

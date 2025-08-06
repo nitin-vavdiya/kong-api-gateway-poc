@@ -1,0 +1,15 @@
+apiVersion: v2
+name: kong-gateway-poc
+description: A Helm chart for Kong API Gateway POC with Keycloak integration
+type: application
+version: 0.1.0
+appVersion: "3.4"
+
+dependencies:
+  - name: kong
+    version: "2.26.0"
+    repository: "https://charts.konghq.com"
+
+maintainers:
+  - name: Kong POC Team
+    email: team@example.com

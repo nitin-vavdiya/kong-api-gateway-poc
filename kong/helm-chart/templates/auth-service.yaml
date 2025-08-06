@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.authService.name }}
+  labels:
+    app: {{ .Values.authService.name }}
+spec:
+  replicas: {{ .Values.authService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.authService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.authService.name }}
+    spec:
+      containers:
+      - name: {{ .Values.authService.name }}
+        image: {{ .Values.authService.image }}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: {{ .Values.authService.port }}
+        env:
+        - name: PORT
+          value: "{{ .Values.authService.port }}"
+        - name: KEYCLOAK_BASE_URL
+          value: "{{ .Values.authService.env.KEYCLOAK_BASE_URL }}"
+        - name: KEYCLOAK_REALM
+          value: "{{ .Values.authService.env.KEYCLOAK_REALM }}"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.authService.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.authService.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.authService.name }}
+  labels:
+    app: {{ .Values.authService.name }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.authService.port }}
+    targetPort: {{ .Values.authService.port }}
+    protocol: TCP
+  selector:
+    app: {{ .Values.authService.name }}

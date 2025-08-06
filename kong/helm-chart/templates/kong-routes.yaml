@@ -1,0 +1,72 @@
+{{/*
+Dynamic Kong Ingress generation from values.yaml routes configuration
+This template generates Kong Ingress resources for each route type defined in values
+*/}}
+
+{{- range $routeType, $routeConfig := .Values.routes }}
+{{- if $routeConfig.enabled }}
+---
+# {{ $routeType | title }} Routes - {{ $routeConfig.description }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kong-{{ $routeType }}-routes
+  annotations:
+    {{- if $routeConfig.plugins }}
+    konghq.com/plugins: {{ $routeConfig.plugins | join "," }}
+    {{- end }}
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-routes
+    route-type: {{ $routeType }}
+spec:
+  ingressClassName: kong
+  rules:
+  - http:
+      paths:
+      {{- range $pathConfig := $routeConfig.paths }}
+      - path: {{ $pathConfig.path }}
+        pathType: {{ $pathConfig.pathType | default "Prefix" }}
+        backend:
+          service:
+            name: {{ $pathConfig.service }}
+            port:
+              number: {{ $pathConfig.port }}
+      {{- end }}
+{{- end }}
+{{- end }}
+
+---
+# JWT Secret for Keycloak Integration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-jwt-secret
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-secret
+type: Opaque
+stringData:
+  kongCredType: jwt
+  # RSA Public Key from Keycloak for JWT verification  
+  rsa_public_key: {{ .Values.keycloak.jwt.publicKey | quote }}
+  algorithm: {{ .Values.keycloak.jwt.algorithm }}
+  key: {{ .Values.keycloak.baseUrl }}/realms/{{ .Values.keycloak.realm }}
+  {{- if .Values.keycloak.jwt.keyId }}
+  kid: {{ .Values.keycloak.jwt.keyId }}
+  {{- end }}
+
+---
+# JWT Consumer for Keycloak Integration
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+  name: keycloak-jwt-consumer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-consumer
+username: keycloak-user
+credentials:
+  - {{ .Release.Namespace }}/keycloak-jwt-secret
