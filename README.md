@@ -19,7 +19,7 @@ This project demonstrates a comprehensive Kong API Gateway setup with Keycloak i
 
 ## 🏗️ Architecture Overview
 
-![Kong API Gateway POC Architecture](./cs/docs/architecture.svg)
+![Kong API Gateway POC Architecture](./docs/kong_poc.svg)
 
 The architecture consists of:
 
