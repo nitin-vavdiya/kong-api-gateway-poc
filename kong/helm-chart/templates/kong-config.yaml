@@ -17,35 +17,6 @@ config:
   policy: local
   hide_client_headers: false
 ---
-# Custom JWT Plugin with Keycloak JWKS Integration
-apiVersion: configuration.konghq.com/v1
-kind: KongPlugin
-metadata:
-  name: custom-jwt-auth
-  namespace: {{ .Release.Namespace }}
-  annotations: {}
-  labels:
-    app.kubernetes.io/name: kong-gateway-poc
-    app.kubernetes.io/component: kong-plugin
-plugin: pre-function
-config:
-  access:
-    - |
-      {{- if .Values.luaScripts.enabled }}
-      -- External Lua script: {{ .Values.luaScripts.customJwtAuth.filename }}
-      -- Configuration values are rendered by Helm templating
-      local KEYCLOAK_BASE_URL = "{{ .Values.keycloak.baseUrl }}"
-      local KEYCLOAK_REALM = "{{ .Values.keycloak.realm }}"
-      local EXPECTED_ISSUER = "{{ .Values.keycloak.expectedIssuer }}"
-      local EXPECTED_AUDIENCE = "{{ .Values.keycloak.expectedAudience }}"
-      
-{{ .Files.Get "lua-scripts/custom-jwt-auth.lua" | indent 6 }}
-      {{- else }}
-      -- Fallback: external scripts disabled
-      kong.log.warn("[custom-jwt] External scripts disabled, no authentication performed")
-      kong.response.exit(500, { error = "Authentication not configured" })
-      {{- end }}
----
 # Request Termination Plugin for Private Routes
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
@@ -61,36 +32,6 @@ config:
   status_code: 401
   content_type: "application/json"
   body: '{"error": "Access denied", "message": "Private endpoints are not accessible"}'
----
-
-
-# External Auth Plugin using Kong's native HTTP capabilities
-apiVersion: configuration.konghq.com/v1
-kind: KongPlugin
-metadata:
-  name: custom-auth-pre-function
-  namespace: {{ .Release.Namespace }}
-  annotations: {}
-  labels:
-    app.kubernetes.io/name: kong-gateway-poc
-    app.kubernetes.io/component: kong-plugin
-plugin: pre-function
-config:
-  access:
-    - |
-      {{- if .Values.luaScripts.enabled }}
-      -- External Lua script: {{ .Values.luaScripts.customAuthPreFunction.filename }}
-      -- Configuration values are rendered by Helm templating
-      local AUTH_SERVICE_URL = "{{ .Values.authService.url }}"
-      local AUTH_SERVICE_TIMEOUT = {{ .Values.authService.timeout | default 10000 }}
-      
-{{ .Files.Get "lua-scripts/custom-auth-pre-function.lua" | indent 6 }}
-      {{- else }}
-      -- Fallback: external scripts disabled
-      kong.log.warn("[custom-auth] External scripts disabled, no authentication performed")
-      kong.response.exit(500, { error = "Authentication not configured" })
-      {{- end }}
-
 ---
 # CORS Plugin
 apiVersion: configuration.konghq.com/v1
@@ -125,3 +66,39 @@ config:
     - X-Auth-Token
   credentials: true
   max_age: 3600
+---
+# Custom JWT Auth Plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: custom-jwt-auth
+  namespace: {{ .Release.Namespace }}
+  annotations: {}
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-plugin
+plugin: custom-jwt-auth
+config:
+  keycloak_base_url: "https://keycloak.example.com"
+  keycloak_realm: "master"
+  expected_issuer: "https://keycloak.example.com/realms/master"
+  expected_audience: "kong-api"
+  cache_ttl: 3600
+  ssl_verify: false
+---
+# Custom Auth Pre-Function Plugin
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: custom-auth-pre-function
+  namespace: {{ .Release.Namespace }}
+  annotations: {}
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-plugin
+plugin: custom-auth-pre-function
+config:
+  auth_service_url: {{ .Values.kongPlugins.customAuthPreFunction.auth_service_url | quote }}
+  auth_service_timeout: {{ .Values.kongPlugins.customAuthPreFunction.auth_service_timeout }}
+  ssl_verify: {{ .Values.kongPlugins.customAuthPreFunction.ssl_verify }}
+  retry_count: {{ .Values.kongPlugins.customAuthPreFunction.retry_count }}

@@ -1,0 +1,5 @@
+# Kong Python PDK and dependencies for custom plugins
+kong-pdk>=0.3.0
+requests>=2.25.0
+PyJWT>=2.0.0
+cryptography>=3.0.0

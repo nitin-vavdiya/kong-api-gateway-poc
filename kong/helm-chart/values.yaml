@@ -1,5 +1,15 @@
 # Kong Gateway POC Values
 kong:
+  # Custom Kong image with Python PDK support
+  image:
+    repository: kong-python-pdk
+    tag: "3.4"
+    pullPolicy: IfNotPresent
+  
+  # Enable custom Python plugins
+  plugins:
+    configMaps: []
+    secrets: []
   # Database configuration - using DB-less mode for simplicity
   env:
     database: "off"
@@ -13,18 +23,22 @@ kong:
     admin_gui_error_log: /dev/stderr
     portal_api_error_log: /dev/stderr
     log_level: info
-    # Allow untrusted lua code for pre-function plugins
-    untrusted_lua: "on"
-    # Disable sandbox restrictions for pre-function plugins  
-    untrusted_lua_sandbox_requires: "resty.http,cjson"
-    # Enable lua packages for HTTP calls
-    lua_package_path: "/opt/?.lua;;"
+    # Python plugin server configuration
+    pluginserver_names: "python"
+    pluginserver_python_socket: "/tmp/python_pluginserver.sock"
+    pluginserver_python_start_cmd: "kong-python-pluginserver -d /usr/local/kong/plugins --socket-name /tmp/python_pluginserver.sock"
+    pluginserver_python_query_cmd: "kong-python-pluginserver -d /usr/local/kong/plugins --dump-all-plugins"
+    # Enable custom Python plugins  
+    plugins: "bundled,custom-jwt-auth,custom-auth-pre-function"
 
 
   # Enable ingress controller
   ingressController:
     enabled: true
     installCRDs: false
+    # Disable admission webhook for custom plugins
+    admissionWebhook:
+      enabled: false
 
   # Admin API configuration
   admin:
@@ -78,12 +92,6 @@ kong:
   # Affinity
   affinity: {}
 
-  # Enable service monitor for prometheus (if needed)
-  serviceMonitor:
-    enabled: false
-
-
-
 # Downstream services configuration
 downstreamServices:
   service1:
@@ -106,7 +114,9 @@ authService:
   replicas: 1
   # URL for the auth service verification endpoint
   url: "http://auth-service:8003/auth/verify"
-  timeout: 10000
+  timeout: 10
+  sslVerify: false
+  retryCount: 0
   env:
     KEYCLOAK_BASE_URL: "https://d1df8d9f5a76.ngrok-free.app"
     KEYCLOAK_REALM: "kong"
@@ -118,18 +128,17 @@ keycloak:
   clientId: "kong_client"
   expectedIssuer: "http://d1df8d9f5a76.ngrok-free.app/realms/kong"
   expectedAudience: "account"
+  cacheTtl: 3600
+  sslVerify: false
   
-# Lua Scripts Configuration
-luaScripts:
-  # Enable external Lua script files (embedded via Helm templating)
+# Python Plugins Configuration
+pythonPlugins:
   enabled: true
-  # Configuration for individual scripts
   customJwtAuth:
-    filename: "custom-jwt-auth.lua"
     enabled: true
   customAuthPreFunction:
-    filename: "custom-auth-pre-function.lua"
     enabled: true
+
 
 # Kong plugins global configuration
 kongPlugins:
@@ -138,6 +147,13 @@ kongPlugins:
     requests_per_second: 100
     requests_per_minute: 1000
     requests_per_hour: 10000
+  
+  # Custom Auth Pre-Function Plugin configuration
+  customAuthPreFunction:
+    auth_service_url: "http://auth-service:8003"
+    auth_service_timeout: 10
+    ssl_verify: false
+    retry_count: 2
 
 # Enhanced Routes configuration - Source of Truth
 routes:
