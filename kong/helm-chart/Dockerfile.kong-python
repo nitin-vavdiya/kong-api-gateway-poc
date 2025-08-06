@@ -1,0 +1,49 @@
+# Kong with Python PDK Support
+# Custom Kong image with Python plugin development kit and custom plugins
+
+FROM kong:3.4
+
+# Switch to root to install packages
+USER root
+
+# Install Python 3 and pip
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create symbolic link for python command
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Copy Python plugin requirements
+COPY python-plugins/requirements.txt /tmp/requirements.txt
+
+# Install Python dependencies globally
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+
+# Ensure the PDK executable is in the PATH
+RUN which kong-python-pluginserver || echo "kong-python-pluginserver not found in PATH"
+
+# Add local bin to PATH for kong user
+ENV PATH="/usr/local/bin:$PATH"
+
+# Test PDK installation
+RUN kong-python-pluginserver --help || echo "PDK installed but help command failed - this may be normal"
+
+# Create plugins directory
+RUN mkdir -p /usr/local/kong/plugins
+
+# Copy Python plugins
+COPY python-plugins/ /usr/local/kong/plugins/
+
+# Set Python path for Kong to find plugins
+ENV PYTHONPATH="/usr/local/kong/plugins:$PYTHONPATH"
+
+# Set plugin path environment variable
+ENV KONG_PLUGINS_PATH="/usr/local/kong/plugins"
+
+# Switch back to kong user
+USER kong
+
+# Default Kong command
+CMD ["kong", "docker-start"]

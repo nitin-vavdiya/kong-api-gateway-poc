@@ -36,37 +36,3 @@ spec:
 {{- end }}
 {{- end }}
 
----
-# JWT Secret for Keycloak Integration
-apiVersion: v1
-kind: Secret
-metadata:
-  name: keycloak-jwt-secret
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: kong-gateway-poc
-    app.kubernetes.io/component: kong-secret
-type: Opaque
-stringData:
-  kongCredType: jwt
-  # RSA Public Key from Keycloak for JWT verification  
-  rsa_public_key: {{ .Values.keycloak.jwt.publicKey | quote }}
-  algorithm: {{ .Values.keycloak.jwt.algorithm }}
-  key: {{ .Values.keycloak.baseUrl }}/realms/{{ .Values.keycloak.realm }}
-  {{- if .Values.keycloak.jwt.keyId }}
-  kid: {{ .Values.keycloak.jwt.keyId }}
-  {{- end }}
-
----
-# JWT Consumer for Keycloak Integration
-apiVersion: configuration.konghq.com/v1
-kind: KongConsumer
-metadata:
-  name: keycloak-jwt-consumer
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: kong-gateway-poc
-    app.kubernetes.io/component: kong-consumer
-username: keycloak-user
-credentials:
-  - {{ .Release.Namespace }}/keycloak-jwt-secret

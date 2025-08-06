@@ -1,6 +1,21 @@
 # Kong API Gateway POC with Keycloak Integration
 
-This project demonstrates a comprehensive Kong API Gateway setup with Keycloak integration for JWT authentication and authorization in a Kubernetes environment.
+This project demonstrates a comprehensive Kong API Gateway setup with Keycloak integration for JWT authentication and authorization in a Kubernetes environment using Python-based custom plugins.
+
+## 🚀 Quick Start
+
+```bash
+# 1. Build custom Kong image with Python support
+./scripts/build-kong-python.sh
+
+# 2. Deploy the entire stack
+./scripts/deploy.sh
+
+# 3. Test the endpoints
+./scripts/test-endpoints.sh
+```
+
+📖 **[See detailed Python plugin documentation](kong/helm-chart/python-plugins/README.md)**
 
 ## 🏗️ Architecture Overview
 
@@ -29,15 +44,16 @@ This project demonstrates a comprehensive Kong API Gateway setup with Keycloak i
 ## 🚀 Features
 
 - **Kong API Gateway** as the single entry point
-- **JWT Token Validation** using Keycloak public keys
+- **Python-based Custom Plugins** for enhanced maintainability
+- **Custom JWT Authentication** with dynamic key fetching from Keycloak JWKS
+- **Intelligent Key Management** with automatic caching and rotation
 - **Multiple Authorization Patterns**:
   - Public APIs (no authentication)
-  - Protected APIs (JWT validation only)
+  - Protected APIs (custom JWT validation)  
   - Private APIs (always blocked)
   - Custom APIs (external authorization service)
-- **Rate Limiting** with different policies
-- **CORS Support** for web applications
-- **Comprehensive Logging** for monitoring
+- **Rate Limiting** and **CORS Support**
+- **Comprehensive Debug Logging** for monitoring and troubleshooting
 - **Health Checks** for all services
 - **Kubernetes Native** deployment using Helm
 
@@ -66,18 +82,27 @@ kong-api-gateway-poc/
 │       │   ├── downstream-service-1.yaml # Service 1 deployment
 │       │   ├── downstream-service-2.yaml # Service 2 deployment
 │       │   ├── kong-config.yaml  # Kong plugins and configuration
-│       │   └── kong-routes.yaml  # Kong routes and ingress
+│       │   ├── kong-routes.yaml  # Kong routes and ingress
+│       │   └── python-plugins.yaml # Python plugin configurations
+│       ├── python-plugins/       # Custom Python authentication plugins
+│       │   ├── custom-jwt-auth.py # JWT verification with JWKS fetching
+│       │   ├── custom-auth-pre-function.py # External auth service integration
+│       │   ├── requirements.txt  # Python dependencies
+│       │   └── README.md         # Plugin documentation
 │       ├── charts/               # Helm chart dependencies
 │       │   └── kong-2.26.0.tgz   # Kong Helm chart
+│       ├── Dockerfile.kong-python # Custom Kong image with Python PDK
 │       ├── Chart.yaml            # Chart metadata
 │       ├── Chart.lock            # Chart dependencies lock
 │       └── values.yaml           # Configuration values
 ├── scripts/
+│   ├── build-kong-python.sh      # Build custom Kong image with Python PDK
 │   ├── deploy.sh                 # Main deployment script
 │   ├── cleanup.sh                # Resource cleanup script
 │   ├── get-keycloak-keys.sh      # Keycloak public key fetcher
 │   ├── install-kong-crds.sh      # Kong CRDs installation
-│   └── test-endpoints.sh         # API endpoint testing
+│   ├── test-endpoints.sh         # API endpoint testing
+│   └── test-custom-jwt.sh        # Custom JWT implementation testing
 └── README.md                     # This file
 ```
 
@@ -89,9 +114,11 @@ kong-api-gateway-poc/
 - Rate limiting applied
 
 ### 2. Protected APIs (`/api/protected/**`)
-- **JWT token validation** using Kong's JWT plugin
-- Token verified against Keycloak public keys
-- User information extracted and forwarded as headers
+- **Custom JWT token validation** using Python plugin in Kong
+- Dynamic public key fetching from Keycloak JWKS endpoint
+- Intelligent key caching with 1-hour TTL for performance
+- Automatic key rotation support without manual intervention
+- User information extracted and forwarded as headers (X-User-ID, X-Client-ID, X-Username)
 
 ### 3. Private APIs (`/api/private/**`)
 - **Always rejected** with 401 Unauthorized
@@ -101,6 +128,44 @@ kong-api-gateway-poc/
 - **External authorization service** validation
 - JWT token + business logic validation
 - Custom headers added (user_id, enterprise_id)
+
+## 🔧 Custom JWT Implementation
+
+This POC features a **custom JWT authentication implementation** using Python plugins that provides a more flexible and maintainable solution than Kong's built-in JWT plugin.
+
+### Key Features
+
+- **Dynamic Key Fetching**: Automatically retrieves public keys from Keycloak's JWKS endpoint
+- **Intelligent Caching**: Caches keys for 1 hour to improve performance
+- **Automatic Key Rotation**: Supports key rotation without manual configuration updates
+- **Resilient Fallback**: Falls back to cached keys if Keycloak is temporarily unavailable
+- **Enhanced Debug Logging**: Comprehensive logging for monitoring and troubleshooting
+- **Full Control**: Complete visibility and control over the JWT verification process
+
+### Implementation Details
+
+The custom authentication is implemented using two Python plugins:
+
+#### 1. `custom-jwt-auth.py`
+- Fetches public keys from Keycloak JWKS endpoint
+- Implements JWT parsing and validation using PyJWT
+- Manages key caching with configurable TTL
+- Validates standard JWT claims (exp, iss, aud)
+- Adds user headers for downstream services
+
+#### 2. `custom-auth-pre-function.py`
+- Integrates with external authorization service
+- Provides additional business logic validation
+- Works alongside JWT validation for custom endpoints
+
+### Benefits Over Standard Kong JWT Plugin
+
+1. **No Manual Key Management**: Keys are fetched automatically
+2. **Seamless Key Rotation**: New keys picked up when cache expires
+3. **Better Performance**: Local caching reduces external calls
+4. **Enhanced Debugging**: Detailed logging with debug levels for troubleshooting
+5. **Maintainable Code**: Python-based implementation for easier development
+6. **Flexible Configuration**: Schema-based configuration with validation
 
 ## 🛠️ Prerequisites
 
@@ -274,49 +339,36 @@ routes:
 
 ### Keycloak Integration
 
-Configure Keycloak settings and JWT public keys in the values file:
+Configure Keycloak settings in the values file:
 
 ```yaml
 keycloak:
   baseUrl: "https://d1df8d9f5a76.ngrok-free.app"
   realm: "kong"
   clientId: "kong_client"
-  
-  # JWT Configuration
-  jwt:
-    algorithm: "RS256"
-    publicKey: |
-      -----BEGIN PUBLIC KEY-----
-      # Your Keycloak RSA public key goes here
-      -----END PUBLIC KEY-----
-    autoFetch: false
-    keyId: ""  # Optional: specify key ID if multiple keys
+  expectedIssuer: "http://d1df8d9f5a76.ngrok-free.app/realms/kong"
+  expectedAudience: "account"
 ```
 
-#### Getting Keycloak Public Keys
+**Note**: With the custom JWT implementation, you no longer need to manually configure RSA public keys. The system automatically fetches them from the Keycloak JWKS endpoint.
 
-Use the provided script to fetch public keys from your Keycloak instance:
+#### Testing Custom JWT Implementation
+
+Use the provided script to test the custom JWT authentication:
 
 ```bash
-# Fetch keys from Keycloak
-./scripts/get-keycloak-keys.sh https://your-keycloak-url.com realm-name
+# Test custom JWT implementation
+./scripts/test-custom-jwt.sh
 
-# Or use default values
-./scripts/get-keycloak-keys.sh
+# Or test all endpoints
+./scripts/test-endpoints.sh
 ```
 
-The script will:
-- Fetch JWKS from Keycloak
-- Display available keys
-- Provide configuration for values.yaml
-- Show JWK format for manual conversion to PEM
-
-#### Manual Key Configuration
-
-1. **Get JWKS URL**: `{keycloak_url}/realms/{realm}/protocol/openid-connect/certs`
-2. **Extract RSA public key** from the JWKS response
-3. **Convert JWK to PEM format** (use online tools or openssl)
-4. **Update values.yaml** with the PEM format key
+The custom implementation automatically:
+- Fetches JWKS from Keycloak's well-known endpoint
+- Caches keys locally for performance
+- Handles key rotation transparently
+- Provides detailed logging for debugging
 
 ## 📜 Available Scripts
 
@@ -324,26 +376,28 @@ The POC includes several utility scripts in the `scripts/` directory:
 
 | Script | Purpose |
 |--------|---------|
+| `build-kong-python.sh` | Build custom Kong image with Python PDK support |
 | `deploy.sh` | Deploy entire Kong POC to minikube |
 | `cleanup.sh` | Remove all POC resources and optionally stop minikube |
 | `test-endpoints.sh` | Test all API endpoints with different auth scenarios |
-| `get-keycloak-keys.sh` | Fetch RSA public keys from Keycloak for JWT verification |
+| `test-custom-jwt.sh` | Test custom JWT implementation specifically |
+| `get-keycloak-keys.sh` | Fetch RSA public keys from Keycloak for reference |
 | `install-kong-crds.sh` | Install Kong Custom Resource Definitions (CRDs) |
 
 ### Script Usage Examples
 
 ```bash
+# Build custom Kong image with Python plugins
+./scripts/build-kong-python.sh
+
 # Deploy the POC
 ./scripts/deploy.sh
 
-# Install Kong CRDs (if needed)
-./scripts/install-kong-crds.sh
-
-# Get Keycloak public keys
-./scripts/get-keycloak-keys.sh https://your-keycloak.com realm-name
-
 # Test all endpoints
 ./scripts/test-endpoints.sh
+
+# Test custom JWT implementation
+./scripts/test-custom-jwt.sh
 
 # Clean up everything
 ./scripts/cleanup.sh
@@ -420,19 +474,27 @@ for i in {1..10}; do
 done
 ```
 
-## 📝 Logging
+## 📝 Debug Logging
 
-Kong is configured to log to stdout/stderr for easy integration with log aggregation systems:
+Kong is configured with comprehensive debug logging for easy troubleshooting:
 
 - **Access logs**: All request/response information
-- **Error logs**: Kong and plugin errors
-- **Custom logs**: Auth service logs for debugging
+- **Error logs**: Kong and plugin errors  
+- **Debug logs**: Detailed Python plugin execution logs
+- **Auth service logs**: External authentication service debugging
 
 View logs in real-time:
 
 ```bash
+# Kong gateway logs (includes Python plugin debug logs)
 kubectl logs -f deployment/kong-gateway-kong -n kong-poc
+
+# Auth service logs
 kubectl logs -f deployment/auth-service -n kong-poc
+
+# Search for specific plugin logs
+kubectl logs deployment/kong-gateway-kong -n kong-poc | grep "\[custom-jwt\]"
+kubectl logs deployment/kong-gateway-kong -n kong-poc | grep "\[custom-auth\]"
 ```
 
 ## 🧹 Cleanup

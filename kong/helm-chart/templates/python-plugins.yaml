@@ -1,0 +1,41 @@
+{{- if .Values.pythonPlugins.enabled }}{{/* Enable custom Python plugins */}}
+# Custom JWT Plugin with Keycloak JWKS Integration - Python Version
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: custom-jwt-auth
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-plugin
+plugin: custom-jwt-auth
+config:
+  keycloak_base_url: "{{ .Values.keycloak.baseUrl }}"
+  keycloak_realm: "{{ .Values.keycloak.realm }}"
+  expected_issuer: "{{ .Values.keycloak.expectedIssuer }}"
+  expected_audience: "{{ .Values.keycloak.expectedAudience }}"
+  cache_ttl: {{ .Values.keycloak.cacheTtl | default 3600 }}
+  ssl_verify: {{ .Values.keycloak.sslVerify | default false }}
+---
+# External Auth Plugin - Python Version
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: custom-auth-pre-function
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+  labels:
+    app.kubernetes.io/name: kong-gateway-poc
+    app.kubernetes.io/component: kong-plugin
+plugin: custom-auth-pre-function
+config:
+  auth_service_url: "{{ .Values.authService.url }}"
+  auth_service_timeout: {{ .Values.authService.timeout | default 10 }}
+  ssl_verify: {{ .Values.authService.sslVerify | default false }}
+  retry_count: {{ .Values.authService.retryCount | default 0 }}
+{{- end }}

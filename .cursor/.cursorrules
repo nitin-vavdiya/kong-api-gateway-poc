@@ -1,0 +1,252 @@
+# Kong API Gateway POC - Cursor Rules
+
+You are working on a Kong API Gateway Proof of Concept (POC) project with Keycloak integration. This project demonstrates comprehensive Kong setup with custom Python plugins, JWT authentication, and Kubernetes deployment using Helm.
+
+## 🏗️ Project Overview
+
+This is a Kong API Gateway POC featuring:
+- **Kong API Gateway** as the single entry point
+- **Python-based Custom Plugins** for enhanced maintainability  
+- **Custom JWT Authentication** with dynamic key fetching from Keycloak JWKS
+- **Multiple Authorization Patterns** (Public, Protected, Private, Custom APIs)
+- **Kubernetes Native** deployment using Helm
+- **Microservices Architecture** with Flask-based downstream services
+
+## 🛠️ Tech Stack & Languages
+
+### Core Technologies
+- **Kong Gateway**: API Gateway (v3.4) with custom Python plugins
+- **Keycloak**: External OAuth2/OIDC provider for JWT token generation
+- **Kubernetes**: Container orchestration platform (minikube for development)
+- **Helm**: Kubernetes package manager for deployment
+- **Docker**: Containerization platform
+
+### Programming Languages & Frameworks
+- **Python 3.11**: 
+  - Kong Python PDK for custom plugins
+  - Flask for microservices
+  - PyJWT for JWT token handling
+  - Requests for HTTP client operations
+  - Gunicorn as WSGI server
+- **Bash**: Shell scripting for automation
+- **YAML**: Kubernetes manifests and Helm configurations
+
+### Python Dependencies
+- **Kong Plugins**: `kong-pdk>=0.3.0`, `PyJWT>=2.0.0`, `cryptography>=3.0.0`, `requests>=2.25.0`
+- **Services**: `Flask==2.3.3`, `gunicorn==21.2.0`, `PyJWT==2.8.0`, `cryptography==41.0.7`, `requests==2.31.0`
+
+### Infrastructure & Tools
+- **minikube**: Local Kubernetes development environment
+- **kubectl**: Kubernetes CLI tool
+- **docker**: Container management
+- **jq**: JSON processing for scripts
+- **curl**: API testing and health checks
+
+## 📁 Project Structure Understanding
+
+```
+kong-api-gateway-poc/
+├── kong/helm-chart/           # Helm chart for Kong deployment
+│   ├── python-plugins/        # Custom Python authentication plugins
+│   │   ├── custom-jwt-auth.py # JWT verification with JWKS fetching
+│   │   └── custom-auth-pre-function.py # External auth service integration
+│   ├── templates/             # Kubernetes YAML manifests
+│   ├── Dockerfile.kong-python # Custom Kong image with Python PDK
+│   └── values.yaml           # Helm configuration values
+├── services/                  # Microservices (Flask-based)
+│   ├── auth-service/         # Custom authorization service
+│   ├── downstream-service-1/ # Sample microservice 1
+│   └── downstream-service-2/ # Sample microservice 2
+└── scripts/                  # Automation scripts (Bash)
+    ├── deploy.sh            # Main deployment script
+    ├── build-kong-python.sh # Custom Kong image builder
+    └── test-*.sh           # Testing scripts
+```
+
+## 🎯 Coding Guidelines
+
+### Python Development
+- **Kong Plugins**:
+  - Use Kong Python PDK patterns for plugin development
+  - Follow Kong plugin lifecycle: `access`, `header_filter`, `response`, etc.
+  - Implement proper error handling with Kong response methods
+  - Use structured logging with Kong's log levels
+  - Cache external API calls (like JWKS) for performance
+  - Validate plugin configurations with schema definitions
+
+- **Flask Services**:
+  - Use Flask best practices with proper blueprint organization
+  - Implement health check endpoints (`/health`)
+  - Use Gunicorn as WSGI server in production
+  - Add proper error handling and logging
+  - Follow RESTful API design patterns
+  - Include request/response validation
+
+- **JWT Handling**:
+  - Use PyJWT library for token validation
+  - Implement proper key rotation handling
+  - Cache JWKS keys with appropriate TTL
+  - Validate all standard JWT claims (exp, iss, aud, etc.)
+  - Extract and forward user context as headers
+
+### Docker & Containerization
+- **Dockerfile Best Practices**:
+  - Use multi-stage builds when appropriate
+  - Copy requirements.txt first for better layer caching
+  - Create non-root users for security
+  - Include health checks with proper timeouts
+  - Minimize image size and attack surface
+  - Use specific Python base image versions
+
+- **Kong Custom Image**:
+  - Extend official Kong image (kong:3.4)
+  - Install Python 3 and required dependencies
+  - Set proper environment variables for Python plugins
+  - Copy plugins to standardized locations
+  - Ensure proper file permissions
+
+### Kubernetes & Helm
+- **Helm Charts**:
+  - Use template functions for reusability
+  - Implement proper value validation
+  - Use semantic versioning for chart versions
+  - Include helpful notes in templates
+  - Follow Helm best practices for resource naming
+
+- **YAML Manifests**:
+  - Use consistent indentation (2 spaces)
+  - Include proper labels and annotations
+  - Implement resource limits and requests
+  - Use meaningful names for resources
+  - Include health checks and readiness probes
+
+- **Kong Configuration**:
+  - Use Kong Ingress Controller resources (KongIngress, KongPlugin)
+  - Implement proper service discovery
+  - Configure rate limiting and CORS appropriately
+  - Use declarative configuration when possible
+
+### Shell Scripting
+- **Bash Scripts**:
+  - Use `set -e` for error handling
+  - Implement colored output for better UX
+  - Include usage information and help text
+  - Use proper quoting to handle spaces in paths
+  - Add timeout handling for long-running operations
+  - Include cleanup functions for graceful exits
+
+## 🔧 Development Patterns
+
+### Authentication & Authorization
+- **Custom JWT Implementation**:
+  - Automatically fetch JWKS from Keycloak well-known endpoint
+  - Implement intelligent caching with configurable TTL
+  - Handle key rotation transparently
+  - Provide comprehensive debug logging
+  - Extract user information for downstream services
+
+- **Authorization Patterns**:
+  - Public APIs: No authentication required
+  - Protected APIs: Custom JWT validation
+  - Private APIs: Always reject with 401
+  - Custom APIs: External authorization service + JWT
+
+### Configuration Management
+- **Environment-Specific Config**:
+  - Use Helm values for environment differences
+  - Implement proper secret management
+  - Use ConfigMaps for non-sensitive configuration
+  - Support multiple Keycloak environments
+
+- **Plugin Configuration**:
+  - Use schema validation for plugin configs
+  - Implement sensible defaults
+  - Support environment variable overrides
+  - Document all configuration options
+
+### Testing & Debugging
+- **API Testing**:
+  - Include comprehensive test scripts
+  - Test all authentication patterns
+  - Verify rate limiting behavior
+  - Test error scenarios and edge cases
+
+- **Logging & Monitoring**:
+  - Implement structured logging across all components
+  - Use appropriate log levels (debug, info, warn, error)
+  - Include correlation IDs for request tracing
+  - Provide health check endpoints for all services
+
+## 🚨 Security Considerations
+
+- **JWT Validation**:
+  - Always validate token signature, expiration, issuer, and audience
+  - Use secure key fetching with proper error handling
+  - Implement proper key caching to avoid DDOS on key endpoints
+  - Log security events appropriately
+
+- **Container Security**:
+  - Use non-root users in containers
+  - Minimize attack surface with slim base images
+  - Keep dependencies updated
+  - Implement proper secret management
+
+- **Network Security**:
+  - Use TLS for all external communications
+  - Implement proper CORS policies
+  - Use rate limiting to prevent abuse
+  - Validate all input data
+
+## 🎭 Code Style & Standards
+
+### Python
+- Follow PEP 8 style guidelines
+- Use type hints where appropriate
+- Implement proper docstrings for functions and classes
+- Use meaningful variable and function names
+- Keep functions focused and single-purpose
+
+### YAML
+- Use 2-space indentation consistently
+- Keep lines under 120 characters
+- Use meaningful resource names
+- Include comments for complex configurations
+
+### Bash
+- Use lowercase with underscores for variable names
+- Quote variables to handle spaces
+- Use meaningful function names
+- Include error handling and cleanup
+
+## 🔄 Common Operations
+
+### Development Workflow
+1. Make changes to Python plugins or services
+2. Build custom Kong image: `./scripts/build-kong-python.sh`
+3. Deploy changes: `./scripts/deploy.sh`
+4. Test endpoints: `./scripts/test-endpoints.sh`
+5. Debug issues: Check logs with `kubectl logs`
+
+### Plugin Development
+1. Create new plugin in `kong/helm-chart/python-plugins/`
+2. Add plugin to Kong configuration in `values.yaml`
+3. Update requirements.txt if new dependencies needed
+4. Test plugin with dedicated test scripts
+5. Document plugin configuration and usage
+
+### Service Development
+1. Update Flask service code
+2. Rebuild Docker image
+3. Update Helm values if configuration changes needed
+4. Deploy and test
+5. Monitor logs for issues
+
+## 🐛 Troubleshooting Guidelines
+
+- **Kong Issues**: Check Kong logs and plugin configurations
+- **Authentication Issues**: Verify Keycloak connectivity and JWKS endpoint
+- **Deployment Issues**: Check Kubernetes events and pod logs
+- **Plugin Issues**: Enable debug logging and check Python plugin execution
+- **Network Issues**: Verify service discovery and ingress configuration
+
+Remember: This is a POC project focused on demonstrating Kong's capabilities with custom Python plugins and Keycloak integration. Prioritize clarity, maintainability, and comprehensive logging for learning and debugging purposes.

@@ -112,7 +112,13 @@ docker build -t downstream-service-2:latest ./services/downstream-service-2/
 print_status "Building auth-service..."
 docker build -t auth-service:latest ./services/auth-service/
 
-print_success "All Docker images built successfully"
+print_status "Building custom Kong image with Python PDK support..."
+docker build \
+    -f ./kong/helm-chart/Dockerfile.kong-python \
+    -t kong-python-pdk:3.4 \
+    ./kong/helm-chart/
+
+print_success "All Docker images built successfully (including Kong with Python plugins)"
 
 # Create namespace
 print_status "Creating namespace $NAMESPACE..."
@@ -226,7 +232,15 @@ echo ""
 print_success "Deployment completed successfully!"
 echo ""
 print_warning "IMPORTANT NOTES:"
-print_warning "1. Make sure your Keycloak server is accessible at https://d1df8d9f5a76.ngrok-free.app"
-print_warning "2. Update the RSA public key in kong/helm-chart/values.yaml for JWT verification"
-print_warning "3. Use './scripts/get-keycloak-keys.sh' to fetch the correct public key from Keycloak"
-print_warning "4. Redeploy after updating the public key for JWT authentication to work properly"
+print_warning "1. Kong is now using Python plugins instead of Lua scripts for better maintainability"
+print_warning "2. Make sure your Keycloak server is accessible at https://d1df8d9f5a76.ngrok-free.app"
+print_warning "3. Update the RSA public key in kong/helm-chart/values.yaml for JWT verification"
+print_warning "4. Use './scripts/get-keycloak-keys.sh' to fetch the correct public key from Keycloak"
+print_warning "5. Redeploy after updating the public key for JWT authentication to work properly"
+
+echo ""
+print_status "🐍 Python Plugin Information:"
+echo "✅ Custom Kong image built with Python PDK support"
+echo "✅ Active plugins: custom-jwt-auth, custom-auth-pre-function"
+echo "✅ Python dependencies: kong-pdk, requests, PyJWT, cryptography"
+echo "📖 Plugin documentation: kong/helm-chart/python-plugins/README.md"

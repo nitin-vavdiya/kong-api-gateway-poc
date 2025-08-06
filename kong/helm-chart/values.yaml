@@ -1,5 +1,15 @@
 # Kong Gateway POC Values
 kong:
+  # Custom Kong image with Python PDK support
+  image:
+    repository: kong-python-pdk
+    tag: "3.4"
+    pullPolicy: IfNotPresent
+  
+  # Enable custom Python plugins
+  plugins:
+    configMaps: []
+    secrets: []
   # Database configuration - using DB-less mode for simplicity
   env:
     database: "off"
@@ -13,17 +23,22 @@ kong:
     admin_gui_error_log: /dev/stderr
     portal_api_error_log: /dev/stderr
     log_level: info
-    # Allow untrusted lua code for pre-function plugins
-    untrusted_lua: "on"
-    # Disable sandbox restrictions for pre-function plugins  
-    untrusted_lua_sandbox_requires: "resty.http,cjson"
-    # Enable lua packages for HTTP calls
-    lua_package_path: "/opt/?.lua;;"
+    # Python plugin server configuration
+    pluginserver_names: "python"
+    pluginserver_python_socket: "/tmp/python_pluginserver.sock"
+    pluginserver_python_start_cmd: "kong-python-pluginserver -d /usr/local/kong/plugins --socket-name /tmp/python_pluginserver.sock"
+    pluginserver_python_query_cmd: "kong-python-pluginserver -d /usr/local/kong/plugins --dump-all-plugins"
+    # Enable custom Python plugins  
+    plugins: "bundled,custom-jwt-auth,custom-auth-pre-function"
+
 
   # Enable ingress controller
   ingressController:
     enabled: true
     installCRDs: false
+    # Disable admission webhook for custom plugins
+    admissionWebhook:
+      enabled: false
 
   # Admin API configuration
   admin:
@@ -77,10 +92,6 @@ kong:
   # Affinity
   affinity: {}
 
-  # Enable service monitor for prometheus (if needed)
-  serviceMonitor:
-    enabled: false
-
 # Downstream services configuration
 downstreamServices:
   service1:
@@ -101,56 +112,48 @@ authService:
   port: 8003
   image: auth-service:latest
   replicas: 1
+  # URL for the auth service verification endpoint
+  url: "http://auth-service:8003/auth/verify"
+  timeout: 10
+  sslVerify: false
+  retryCount: 0
   env:
     KEYCLOAK_BASE_URL: "https://d1df8d9f5a76.ngrok-free.app"
     KEYCLOAK_REALM: "kong"
 
 # Keycloak configuration
 keycloak:
-  baseUrl: "http://d1df8d9f5a76.ngrok-free.app"
+  baseUrl: "https://d1df8d9f5a76.ngrok-free.app"
   realm: "kong"
   clientId: "kong_client"
+  expectedIssuer: "http://d1df8d9f5a76.ngrok-free.app/realms/kong"
+  expectedAudience: "account"
+  cacheTtl: 3600
+  sslVerify: false
   
-  # JWT Configuration
-  jwt:
-    algorithm: "RS256"
-    # RSA Public Key for JWT verification
-    # This should be the public key from your Keycloak realm
-    # You can get this from: {keycloak_url}/realms/{realm}/protocol/openid-connect/certs
-    publicKey: |
-      -----BEGIN PUBLIC KEY-----
-      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyKH9K8Y3BxJf8EWOr9B4
-      Z4FdR3QXVqP3zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DY
-      zJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6
-      DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7
-      Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9
-      C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8
-      L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5U8L9C7Q6DYzJfCgE3vRqL8P5zY4Z2BhF5
-      U8L9C7Q6DYzJfCgE3vRqL8QIDAQAB
-      -----END PUBLIC KEY-----
-    
-    # Optional: If you want to fetch the key automatically from Keycloak
-    # Set this to true and the deployment will try to fetch the key
-    autoFetch: false
-    
-    # Key ID (kid) from the JWT header - leave empty to use the first key
-    keyId: ""
+# Python Plugins Configuration
+pythonPlugins:
+  enabled: true
+  customJwtAuth:
+    enabled: true
+  customAuthPreFunction:
+    enabled: true
+
 
 # Kong plugins global configuration
 kongPlugins:
-  # JWT plugin configuration
-  jwt:
-    secret_is_base64: false
-    key_claim_name: "kid"
-    algorithm: "RS256"
-    # Reference to the Keycloak JWT secret
-    secret: "keycloak-jwt-secret"
-    
   # Rate limiting configuration
   rateLimiting:
     requests_per_second: 100
     requests_per_minute: 1000
     requests_per_hour: 10000
+  
+  # Custom Auth Pre-Function Plugin configuration
+  customAuthPreFunction:
+    auth_service_url: "http://auth-service:8003"
+    auth_service_timeout: 10
+    ssl_verify: false
+    retry_count: 2
 
 # Enhanced Routes configuration - Source of Truth
 routes:
@@ -176,7 +179,7 @@ routes:
     enabled: true
     description: "Protected endpoints requiring valid JWT token"
     plugins:
-      - "jwt-auth"
+      - "custom-jwt-auth"
       - "rate-limiting-global"
       - "cors"
     paths:
