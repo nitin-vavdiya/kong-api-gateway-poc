@@ -1,6 +1,8 @@
 # Kong API Gateway POC with Keycloak Integration
 
-This project demonstrates a comprehensive Kong API Gateway setup with Keycloak integration for JWT authentication and authorization in a Kubernetes environment using Python-based custom plugins.
+> **A production-ready Kong API Gateway demonstration featuring custom Python plugins, dynamic JWT authentication with Keycloak, and comprehensive authorization patterns deployed on Kubernetes.**
+
+This POC showcases modern API gateway patterns with intelligent JWT validation, automatic key rotation, external authorization services, and comprehensive testing - all containerized and deployed using Helm charts for seamless Kubernetes integration.
 
 ## 🚀 Quick Start
 
@@ -15,7 +17,8 @@ This project demonstrates a comprehensive Kong API Gateway setup with Keycloak i
 ./scripts/test-endpoints.sh
 ```
 
-📖 **[See detailed Python plugin documentation](kong/helm-chart/python-plugins/README.md)**
+📖 **[See detailed Python plugin documentation](kong/helm-chart/python-plugins/README.md)**  
+📚 **[Kong Admin API Complete Guide](docs/kong-admin-api-guide.md)**
 
 ## 🏗️ Architecture Overview
 
@@ -284,13 +287,7 @@ curl -H "Authorization: Bearer $JWT_TOKEN" \
 | GET | `/api/custom/service2/inventory` | Custom | Get inventory with custom auth |
 | PUT | `/api/custom/service2/inventory` | Custom | Update inventory with custom auth |
 
-### Health Check Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `/health/downstream-1` | Service 1 health |
-| `/health/downstream-2` | Service 2 health |
-| `/health/auth` | Auth service health |
 
 ## 🔧 Configuration
 

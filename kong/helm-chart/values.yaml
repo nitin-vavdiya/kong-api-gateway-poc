@@ -16,12 +16,8 @@ kong:
     nginx_worker_processes: "2"
     proxy_access_log: /dev/stdout
     admin_access_log: /dev/stdout
-    admin_gui_access_log: /dev/stdout
-    portal_api_access_log: /dev/stdout
     proxy_error_log: /dev/stderr
     admin_error_log: /dev/stderr
-    admin_gui_error_log: /dev/stderr
-    portal_api_error_log: /dev/stderr
     log_level: info
     # Python plugin server configuration
     pluginserver_names: "python"
@@ -61,14 +57,6 @@ kong:
       nodePort: 32000
     https:
       enabled: false
-
-  # Manager GUI
-  manager:
-    enabled: true
-    type: NodePort
-    nodePort: 32002
-    http:
-      enabled: true
 
   # Enterprise features
   enterprise:
@@ -225,23 +213,3 @@ routes:
         service: "downstream-service-2"
         port: 8002
         pathType: "Prefix"
-  
-  # Health check routes
-  health:
-    enabled: true
-    description: "Health check endpoints for monitoring"
-    plugins:
-      - "cors"
-    paths:
-      - path: "/health/downstream-1"
-        service: "downstream-service-1"
-        port: 8001
-        pathType: "Exact"
-      - path: "/health/downstream-2"
-        service: "downstream-service-2"
-        port: 8002
-        pathType: "Exact"
-      - path: "/health/auth"
-        service: "auth-service"
-        port: 8003
-        pathType: "Exact"
