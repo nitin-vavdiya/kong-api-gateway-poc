@@ -98,6 +98,7 @@ class Plugin:
             # Set user context headers for downstream services
             if auth_response and auth_response.get("authorized"):
                 user_data = auth_response
+                # put session data in redis with session id 
                 kong.service.request.set_header("X-User-ID", user_data.get("user_id", ""))
                 kong.service.request.set_header("X-Enterprise-ID", user_data.get("enterprise_id", ""))
                 kong.service.request.set_header("X-Client-ID", user_data.get("client_id", ""))

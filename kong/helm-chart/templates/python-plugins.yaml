@@ -3,7 +3,7 @@
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
-  name: custom-jwt-auth
+  name: custom-jwt-auth ## verify token sig only
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: post-install,post-upgrade
@@ -18,13 +18,13 @@ config:
   expected_issuer: "{{ .Values.keycloak.expectedIssuer }}"
   expected_audience: "{{ .Values.keycloak.expectedAudience }}"
   cache_ttl: {{ .Values.keycloak.cacheTtl | default 3600 }}
-  ssl_verify: {{ .Values.keycloak.sslVerify | default false }}
+  ssl_verify: {{ .Values.keycloak.sslVerify | default false }} ## set false for localhost, remove when you deploy on the server
 ---
 # External Auth Plugin - Python Version
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
-  name: custom-auth-pre-function
+  name: custom-auth-pre-function  ## verify access using third party API call
   namespace: {{ .Release.Namespace }}
   annotations:
     helm.sh/hook: post-install,post-upgrade
@@ -36,6 +36,6 @@ plugin: custom-auth-pre-function
 config:
   auth_service_url: "{{ .Values.authService.url }}"
   auth_service_timeout: {{ .Values.authService.timeout | default 10 }}
-  ssl_verify: {{ .Values.authService.sslVerify | default false }}
+  ssl_verify: {{ .Values.authService.sslVerify | default false }} ## set false for localhost, remove when you deploy on the server
   retry_count: {{ .Values.authService.retryCount | default 0 }}
 {{- end }}
